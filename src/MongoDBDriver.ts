@@ -1,7 +1,5 @@
 const { MongoClient, ServerApiVersion } = require("mongodb");
-import { exec } from "child_process";
-import { Model, QueryBuilder } from "../../webframez-core";
-import { BaseDBDriver } from "../../webframez-core/src/Database/BaseDBDriver";
+import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
 
 export class MongoDBDriver extends BaseDBDriver {
   client: typeof MongoClient = null;
@@ -61,7 +59,6 @@ export class MongoDBDriver extends BaseDBDriver {
       aggregation.push({ $match: match });
     }
 
-    console.log("queryBuilder.mode", queryBuilder.mode);
     if (queryBuilder.mode === "delete") {
       // Delete many action
       return await client
