@@ -1,6 +1,5 @@
 declare const MongoClient: any;
-import { Model, QueryBuilder } from "../../webframez-core";
-import { BaseDBDriver } from "../../webframez-core/src/Database/BaseDBDriver";
+import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
 export declare class MongoDBDriver extends BaseDBDriver {
     client: typeof MongoClient;
     connect(): Promise<any>;
