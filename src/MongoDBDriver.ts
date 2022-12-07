@@ -37,6 +37,8 @@ export class MongoDBDriver extends BaseDBDriver {
 
   async handleQueryBuilder(client: any, queryBuilder: QueryBuilder) {
     const aggregation = [];
+    
+    // Match
     const match: { [key: string]: any } = {};
     if (queryBuilder && queryBuilder.query && queryBuilder.query.length > 0) {
       for (let q of queryBuilder.query) {
@@ -57,6 +59,34 @@ export class MongoDBDriver extends BaseDBDriver {
       }
 
       aggregation.push({ $match: match });
+    }
+    
+    // Sort
+    const sort = {};
+    if (queryBuilder && queryBuilder.sort && queryBuilder.sort.length > 0) {
+        for (let i in queryBuilder.sort) {
+            if (queryBuilder.sort[i] && queryBuilder.sort[i].column) {
+                sort[queryBuilder.sort[i].column] =
+                    queryBuilder.sort[i].sort === "ASC"
+                        ? 1
+                        : queryBuilder.sort[i].sort === "DESC"
+                        ? -1
+                        : queryBuilder.sort[i].sort;
+            }
+        }
+    }
+    if (sort && Object.keys(sort).length > 0) {
+        aggregation.push({ $sort: sort });
+    }
+
+    // Offset
+    if (queryBuilder && queryBuilder.offsetCount && parseInt(queryBuilder.offsetCount) > 0) {
+        aggregation.push({ $skip: parseInt(queryBuilder.offsetCount) });
+    }
+
+    // Limit
+    if (queryBuilder && queryBuilder.limitCount && parseInt(queryBuilder.limitCount) > 0) {
+        aggregation.push({ $limit: parseInt(queryBuilder.limitCount) });
     }
 
     if (queryBuilder.mode === "delete") {
