@@ -113,6 +113,18 @@ export class MongoDBDriver extends BaseDBDriver {
         .db(queryBuilder.database ?? null)
         .collection(queryBuilder.queryTable)
         .deleteOne(match);
+    } else if (queryBuilder.mode === "count") {
+      // Count action
+      const data = await client
+        .db(queryBuilder.database ?? null)
+        .collection(queryBuilder.queryTable)
+        .aggregate([
+          ...aggregation,
+          { $group: { _id: null, count: { $sum: 1 } } },
+          { $project: { _id: 0 } },
+        ])
+        .toArray();
+      return data && data[0] && data[0].count !== undefined ? data[0].count : 0;
     } else {
       // Select actions
       if (queryBuilder.mode === "first") {
