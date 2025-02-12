@@ -132,13 +132,13 @@ export class MongoDBDriver extends BaseDBDriver {
         }
     }
 
-    async execute(client: any, executionData: any) {
+    async execute(client: any, executionData: any, options?: any) {
         // Aggregation
         if (executionData.type === "aggregation") {
             return await client
                 .db(executionData.database ? executionData.database : null)
                 .collection(executionData.table)
-                .aggregate(executionData.aggregation)
+                .aggregate(executionData.aggregation, options)
                 .toArray();
         }
 
