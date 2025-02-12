@@ -1,6 +1,6 @@
 {
   "name": "@webtypen/webframez-dbdriver-mongodb",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Adds mongodb support/driver to an webtypen-webframez application",
   "homepage": "https://webtypen.de/",
   "license": "MIT",
