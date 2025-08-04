@@ -14,8 +14,6 @@ export class MongoDBDriver extends BaseDBDriver {
         }
 
         const client = new MongoClient(this.config["url" as keyof {}], {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
             serverApi: ServerApiVersion.v1,
         });
 
