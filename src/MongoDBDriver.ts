@@ -17,8 +17,6 @@ export class MongoDBDriver extends BaseDBDriver {
         }
 
         const client = new MongoClient(this.config["url" as keyof {}], {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
             serverApi: ServerApiVersion.v1,
         });
 
@@ -135,13 +133,13 @@ export class MongoDBDriver extends BaseDBDriver {
         }
     }
 
-    async execute(client: any, executionData: any) {
+    async execute(client: any, executionData: any, options?: any) {
         // Aggregation
         if (executionData.type === "aggregation") {
             return await client
                 .db(executionData.database ? executionData.database : null)
                 .collection(executionData.table)
-                .aggregate(executionData.aggregation)
+                .aggregate(executionData.aggregation, options)
                 .toArray();
         }
 
