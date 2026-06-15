@@ -6,14 +6,7 @@ export declare class MongoDBDriver extends BaseDBDriver {
     close(client: any): Promise<void>;
     handleQueryBuilder(client: any, queryBuilder: QueryBuilder): Promise<any>;
     execute(client: any, executionData: any, options?: any): Promise<any>;
-    backup(client: any, options: any): Promise<{
-        driver: string;
-        binary: any;
-        path: string;
-        gzip: boolean;
-        startedAt: string;
-        endedAt: string;
-    }>;
+    backup(client: any, options: any): Promise<any>;
     onModelSave(model: Model, saveStatus: any | null | undefined): Promise<Model>;
     objectId(val?: any): Promise<any>;
 }

@@ -162,7 +162,7 @@ export class MongoDBDriver extends BaseDBDriver {
         return null;
     }
 
-    async backup(client: any, options: any) {
+    async backup(client: any, options: any): Promise<any> {
         const config: any = this.config || {};
         const backupOptions = options?.options || {};
         const url = backupOptions.url || config.url;
