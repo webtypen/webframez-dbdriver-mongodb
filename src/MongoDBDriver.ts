@@ -1,5 +1,8 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
+import fs from "fs";
+import path from "path";
+import { spawn } from "child_process";
 
 export class MongoDBDriver extends BaseDBDriver {
     client: typeof MongoClient = null;
@@ -159,6 +162,81 @@ export class MongoDBDriver extends BaseDBDriver {
         }
 
         return null;
+    }
+
+    async backup(client: any, options: any) {
+        const config: any = this.config || {};
+        const backupOptions = options?.options || {};
+        const url = backupOptions.url || config.url;
+        if (!url) {
+            throw new Error("MongoDB backup requires a configured url.");
+        }
+
+        const targetDir = options?.targetDir;
+        if (!targetDir) {
+            throw new Error("MongoDB backup requires options.targetDir.");
+        }
+
+        const binary = backupOptions.binary || "mongodump";
+        const dumpDir = path.join(targetDir, backupOptions.directory || "dump");
+        fs.rmSync(dumpDir, { recursive: true, force: true });
+        fs.mkdirSync(dumpDir, { recursive: true });
+
+        const args = ["--uri", url, "--out", dumpDir];
+        if (backupOptions.gzip === true) {
+            args.push("--gzip");
+        }
+        if (Array.isArray(backupOptions.args)) {
+            args.push(...backupOptions.args.map((entry: any) => String(entry)));
+        }
+
+        const startedAt = new Date().toISOString();
+        options?.log?.(`Running MongoDB dump into ${dumpDir}`);
+        await new Promise<void>((resolve, reject) => {
+            const child = spawn(binary, args, {
+                stdio: ["ignore", "pipe", "pipe"],
+            });
+
+            const handleOutput = (chunk: Buffer) => {
+                const message = chunk.toString("utf-8").trim();
+                if (message) {
+                    for (const line of message.split(/\r?\n/)) {
+                        if (line.trim() !== "") {
+                            options?.log?.(`mongodump: ${line.trim()}`);
+                        }
+                    }
+                }
+            };
+
+            child.stdout.on("data", handleOutput);
+            child.stderr.on("data", handleOutput);
+            child.on("error", (error) => {
+                reject(
+                    new Error(
+                        error && (error as any).code === "ENOENT"
+                            ? `MongoDB backup requires '${binary}' to be installed and available in PATH.`
+                            : error.message,
+                    ),
+                );
+            });
+            child.on("close", (code) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`MongoDB dump failed with exit code ${code}.`));
+                }
+            });
+        });
+
+        const endedAt = new Date().toISOString();
+        return {
+            driver: "mongodb",
+            binary: binary,
+            path: dumpDir,
+            gzip: backupOptions.gzip === true,
+            startedAt: startedAt,
+            endedAt: endedAt,
+        };
     }
 
     async onModelSave(model: Model, saveStatus: any | null | undefined) {

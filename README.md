@@ -16,3 +16,29 @@ DBDrivers.register("mongodb", MongoDBDriver);
 const app = new WebApplication();
 app.boot();
 ```
+
+## Backups
+
+The driver implements the Webframez `backup(client, options)` hook by running `mongodump`.
+
+Server requirements:
+
+```bash
+mongodump --version
+```
+
+On Ubuntu, install it through MongoDB Database Tools if it is missing.
+
+Example Webframez backup source:
+
+```ts
+databases: [
+  {
+    connection: "default",
+    to: "database/mongodb",
+    options: {
+      gzip: true
+    }
+  }
+]
+```
