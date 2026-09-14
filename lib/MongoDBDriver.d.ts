@@ -1,7 +1,7 @@
-declare const MongoClient: any;
+import { MongoClient } from "mongodb";
 import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
 export declare class MongoDBDriver extends BaseDBDriver {
-    client: typeof MongoClient;
+    client: MongoClient | null;
     connect(): Promise<any>;
     close(client: any): Promise<void>;
     handleQueryBuilder(client: any, queryBuilder: QueryBuilder): Promise<any>;
@@ -10,4 +10,3 @@ export declare class MongoDBDriver extends BaseDBDriver {
     onModelSave(model: Model, saveStatus: any | null | undefined): Promise<Model>;
     objectId(val?: any): Promise<any>;
 }
-export {};

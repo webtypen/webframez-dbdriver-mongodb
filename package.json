@@ -1,6 +1,6 @@
 {
   "name": "@webtypen/webframez-dbdriver-mongodb",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Adds mongodb support/driver to an webtypen-webframez application",
   "homepage": "https://webtypen.de/",
   "license": "MIT",
@@ -19,7 +19,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:check": "tsc --noEmit"
+    "build:check": "tsc --noEmit",
+    "test": "node --test -r ts-node/register/transpile-only src/*.spec.ts"
   },
   "devDependencies": {
     "@types/node": "^18.11.9",
@@ -28,6 +29,15 @@
     "typescript": "^4.9.3"
   },
   "dependencies": {
-    "mongodb": "^4.10.0"
-  }
+    "mongodb": "^6.21.0"
+  },
+  "engines": {
+    "node": ">=16.20.1"
+  },
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md"
+  ]
 }

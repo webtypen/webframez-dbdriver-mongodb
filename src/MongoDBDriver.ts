@@ -1,13 +1,13 @@
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+import { MongoClient, ServerApiVersion, ObjectId } from "mongodb";
 import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 
 export class MongoDBDriver extends BaseDBDriver {
-    client: typeof MongoClient = null;
+    client: MongoClient | null = null;
 
-    async connect() {
+    async connect(): Promise<any> {
         if (this.client) {
             return this.client;
         }
@@ -16,7 +16,7 @@ export class MongoDBDriver extends BaseDBDriver {
             throw new Error("Missing MongoDB-URL ...");
         }
 
-        const client = new MongoClient(this.config["url" as keyof {}], {
+        const client = new MongoClient(this.config["url" as keyof {}] as string, {
             serverApi: ServerApiVersion.v1,
         });
 

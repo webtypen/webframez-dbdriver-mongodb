@@ -42,3 +42,10 @@ databases: [
   }
 ]
 ```
+
+## MongoDB 6 upgrade (0.0.10)
+
+Requires Node.js >=16.20.1. Upgrade webframez-core to >=0.3.68 together with this
+release to keep the standard queue worker compatible with empty queues. The driver
+uses MongoDB ^6.21.0; align the application dependency with that version to avoid
+mixing BSON implementations. See [CHANGELOG.md](./CHANGELOG.md) for API changes.
