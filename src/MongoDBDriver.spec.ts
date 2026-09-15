@@ -29,3 +29,18 @@ test("driver preserves MongoDB 6 write results and update filters", async () => 
     }) }) };
     assert.equal(await driver.execute(client, { type: "updateOne", table: "records", filter: { _id: id }, data }), result);
 });
+
+
+test("ID adapter normalizes foreign BSON IDs and rejects malformed values", () => {
+    const ids = new MongoDBDriver().idAdapter;
+    const hex = "6305d657b78c36153b80fd9b";
+    const foreign = { toString: () => hex };
+    assert.ok(ids.normalize(foreign) instanceof ObjectId);
+    assert.equal(ids.equals(foreign, hex), true);
+    for (const invalid of [null, undefined, 0, "invalid", "abcdefghijkl", Object.create(null)]) {
+        assert.equal(ids.normalize(invalid), null);
+        assert.equal(ids.isValid(invalid), false);
+    }
+    assert.throws(() => ids.create("invalid"), /Invalid MongoDB ObjectId/);
+    assert.equal(ids.equals(null, null), false);
+});

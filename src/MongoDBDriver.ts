@@ -1,4 +1,6 @@
-import { MongoClient, ServerApiVersion, ObjectId } from "mongodb";
+import { MongoDocumentDatabase } from "./MongoDocumentDatabase";
+import { mongoIdAdapter } from "./MongoIdAdapter";
+import { MongoClient, ServerApiVersion } from "mongodb";
 import { BaseDBDriver, Model, QueryBuilder } from "@webtypen/webframez-core";
 import fs from "fs";
 import path from "path";
@@ -6,6 +8,13 @@ import { spawn } from "child_process";
 
 export class MongoDBDriver extends BaseDBDriver {
     client: MongoClient | null = null;
+
+    get idAdapter() { return mongoIdAdapter; }
+
+    documentStore(client: MongoClient) {
+        return new MongoDocumentDatabase(client.db());
+    }
+
 
     async connect(): Promise<any> {
         if (this.client) {
@@ -250,6 +259,6 @@ export class MongoDBDriver extends BaseDBDriver {
     }
 
     async objectId(val?: any) {
-        return val && typeof val === "string" ? new ObjectId(val) : val ? val : new ObjectId();
+        return this.idAdapter.create(val);
     }
 }
