@@ -20,3 +20,10 @@ Applications using the standard queue worker must also upgrade webframez-core to
 Direct consumers of connection.client must handle the document/null return value
 of findOneAndUpdate, findOneAndReplace and findOneAndDelete (instead of the old
 ModifyResult wrapper). No database data migration is required.
+
+## 0.0.12
+
+- Complete document-model operations and Manager-compatible ID strategy.
+- Standalone-compatible telemetry with recoverable atomic sample commits.
+- Preserve query filters while normalizing optional write fields.
+- Reuse connections and close pending opens correctly.

@@ -1,3 +1,6 @@
+import {mongoWriteDocument,mongoWriteUpdate} from "./MongoWriteDocument";
+import {randomUUID} from "node:crypto";
+import {mongoTimeSeriesOperation} from "./MongoTimeSeriesStore";
 import { MongoDocumentDatabase } from "./MongoDocumentDatabase";
 import { mongoIdAdapter } from "./MongoIdAdapter";
 import { MongoClient, ServerApiVersion } from "mongodb";
@@ -9,14 +12,24 @@ import { spawn } from "child_process";
 export class MongoDBDriver extends BaseDBDriver {
     client: MongoClient | null = null;
 
-    get idAdapter() { return mongoIdAdapter; }
+    get idAdapter():any {
+        if((this.config as any)?.idStrategy!=='preserve')return mongoIdAdapter;
+        const normalize=(value:any)=>typeof value==='string'&&value.length||typeof value==='number'&&Number.isFinite(value)||value?._bsontype==='ObjectId'?value:null;
+        return {create:(value:any)=>{if(value==null)return randomUUID();const id=normalize(value);if(id===null)throw new Error('Invalid document ID.');return id;},normalize,isValid:(value:any)=>normalize(value)!==null,equals:(a:any,b:any)=>a?._bsontype==='ObjectId'&&b?._bsontype==='ObjectId'?a.equals(b):typeof a===typeof b&&a===b&&normalize(a)!==null};
+    }
 
     documentStore(client: MongoClient) {
-        return new MongoDocumentDatabase(client.db());
+        return new MongoDocumentDatabase(client.db(),(this.config as any)?.idStrategy==='preserve');
     }
 
 
-    async connect(): Promise<any> {
+    private connecting:Promise<any>|null=null;
+    async connect():Promise<any>{
+        if(this.client)return this.client;
+        if(!this.connecting)this.connecting=this.openConnection();
+        try{return await this.connecting;}finally{this.connecting=null;}
+    }
+    private async openConnection(): Promise<any> {
         if (this.client) {
             return this.client;
         }
@@ -27,122 +40,85 @@ export class MongoDBDriver extends BaseDBDriver {
 
         const client = new MongoClient(this.config["url" as keyof {}] as string, {
             serverApi: ServerApiVersion.v1,
+            ...((this.config as any)?.idStrategy==='preserve'?{promoteBuffers:true,useBigInt64:true}:{}),
         });
 
         try {
             await client.connect();
         } catch (e) {
+            await client.close();
             throw e;
         }
+        this.client = client;
         return client;
     }
 
-    async close(client: any) {
+    async close(client?: any) {
+        client=client||this.client||(this.connecting?await this.connecting:null);
         if (client) {
             await client.close();
         }
 
-        client = null;
+        if(this.client===client)this.client=null;
     }
 
-    async handleQueryBuilder(client: any, queryBuilder: QueryBuilder) {
-        const aggregation = [];
-
-        // Match
-        const match: { [key: string]: any } = {};
-        if (queryBuilder && queryBuilder.query && queryBuilder.query.length > 0) {
-            for (let q of queryBuilder.query) {
-                if (q.type === "where") {
-                    match[q.column] =
-                        q.operator === ">="
-                            ? { $gte: q.value }
-                            : q.operator === ">"
-                            ? { $gt: q.value }
-                            : q.operator === "<="
-                            ? { $lte: q.value }
-                            : q.operator === "<"
-                            ? { $lt: q.value }
-                            : q.operator === "!="
-                            ? { $ne: q.value }
-                            : q.value;
-                }
+    async handleQueryBuilder(client: any, queryBuilder: QueryBuilder): Promise<any> {
+        const collection = client.db(queryBuilder.database ?? undefined).collection(queryBuilder.queryTable);
+        const operators: Record<string, string> = { '=': '$eq', '==': '$eq', '!=': '$ne', '<>': '$ne', '>': '$gt', '>=': '$gte', '<': '$lt', '<=': '$lte', 'IN': '$in', 'NOT IN': '$nin' };
+        const clauses = queryBuilder.query.filter((q: any) => q.type === 'where').map((q: any) => {
+            if (typeof q.column === 'object')
+                return q.column;
+            const name = String(q.operator || '=').trim().toUpperCase();
+            if (name === 'LIKE' || name === 'ILIKE' || name === 'NOT LIKE') {
+                const pattern = String(q.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.');
+                const regex = new RegExp(`^${pattern}$`, name === 'ILIKE' ? 'i' : '');
+                return { [q.column]: name === 'NOT LIKE' ? { $not: regex } : regex };
             }
-
-            aggregation.push({ $match: match });
-        }
-
-        // Sort
-        const sort: { [key: string]: any } = {};
-        if (queryBuilder && queryBuilder.sort && queryBuilder.sort.length > 0) {
-            for (let i in queryBuilder.sort) {
-                if (queryBuilder.sort[i] && queryBuilder.sort[i].column) {
-                    sort[queryBuilder.sort[i].column] =
-                        queryBuilder.sort[i].sort === "ASC"
-                            ? 1
-                            : queryBuilder.sort[i].sort === "DESC"
-                            ? -1
-                            : queryBuilder.sort[i].sort;
-                }
-            }
-        }
-        if (sort && Object.keys(sort).length > 0) {
-            aggregation.push({ $sort: sort });
-        }
-
-        // Offset
-        if (queryBuilder && queryBuilder.offsetCount && parseInt(queryBuilder.offsetCount.toString()) > 0) {
-            aggregation.push({
-                $skip: parseInt(queryBuilder.offsetCount.toString()),
-            });
-        }
-
-        // Limit
-        if (queryBuilder && queryBuilder.limitCount && parseInt(queryBuilder.limitCount.toString()) > 0) {
-            aggregation.push({
-                $limit: parseInt(queryBuilder.limitCount.toString()),
-            });
-        }
-
-        if (queryBuilder.mode === "delete") {
-            // Delete many action
-            return await client
-                .db(queryBuilder.database ?? null)
-                .collection(queryBuilder.queryTable)
-                .deleteMany(match);
-        } else if (queryBuilder.mode === "deleteOne") {
-            // Delete one action
-            return await client
-                .db(queryBuilder.database ?? null)
-                .collection(queryBuilder.queryTable)
-                .deleteOne(match);
-        } else if (queryBuilder.mode === "count") {
-            // Count action
-            const data = await client
-                .db(queryBuilder.database ?? null)
-                .collection(queryBuilder.queryTable)
-                .aggregate([...aggregation, { $group: { _id: null, count: { $sum: 1 } } }, { $project: { _id: 0 } }])
-                .toArray();
-            return data && data[0] && data[0].count !== undefined ? data[0].count : 0;
-        } else {
-            // Select actions
-            if (queryBuilder.mode === "first") {
-                aggregation.push({ $limit: 1 });
-            }
-
-            const data = await client
-                .db(queryBuilder.database ?? null)
-                .collection(queryBuilder.queryTable)
-                .aggregate(aggregation)
-                .toArray();
-
-            if (queryBuilder.mode === "first") {
-                return data && data[0] ? data[0] : null;
-            }
-            return data && data.length > 0 ? data : null;
-        }
+            const operator = operators[name];
+            if (!operator)
+                throw new Error(`Unsupported MongoDB query operator: ${q.operator}`);
+            return { [q.column]: operator === '$eq' ? q.value : { [operator]: q.value } };
+        });
+        const filter = clauses.length ? { $and: clauses } : {};
+        if (queryBuilder.mode === 'delete')
+            return collection.deleteMany(filter);
+        if (queryBuilder.mode === 'deleteOne')
+            return collection.deleteOne(filter);
+        if (queryBuilder.mode === 'count')
+            return collection.countDocuments(filter);
+        const cursor = collection.find(filter, { projection: (queryBuilder as any).projection });
+        if (queryBuilder.sort.length)
+            cursor.sort(Object.fromEntries(queryBuilder.sort.map((s: any) => [s.column, s.sort === -1 || String(s.sort).toUpperCase() === 'DESC' ? -1 : 1])));
+        if (queryBuilder.offsetCount)
+            cursor.skip(queryBuilder.offsetCount);
+        if (queryBuilder.limitCount)
+            cursor.limit(queryBuilder.limitCount);
+        if (queryBuilder.mode === 'first')
+            return cursor.limit(1).next();
+        const rows = await cursor.toArray();
+        return rows.length ? rows : null;
     }
-
     async execute(client: any, executionData: any, options?: any) {
+        const c=client.db(executionData.database || undefined).collection(executionData.table);
+        if(executionData.documentMode&&executionData.type==='updateOne')return c.updateOne(executionData.filter,mongoWriteUpdate({$set:executionData.data||{}}));
+        if(executionData.documentMode){executionData={...executionData,...(executionData.data!==undefined?{data:mongoWriteDocument(executionData.data)}:{}),...(executionData.update!==undefined?{update:mongoWriteUpdate(executionData.update)}:{})};}
+        if(executionData.type==='timeSeries')return mongoTimeSeriesOperation(client,executionData.table,executionData);
+        if(executionData.type==='modelEnsureTable') {try{await client.db().createCollection(executionData.table);}catch(error:any){if(error.code!==48)throw error;}return;}
+        if(executionData.type==='modelCreateIndex'||executionData.type==='modelMaterializeIndex') {
+            if(Object.keys(executionData.key).length===1&&executionData.key._id===1)return '_id_';
+            const {materialized,...indexOptions}=options||{};return c.createIndex(executionData.key,indexOptions);
+        }
+        if(executionData.type==='modelCreateMany') {
+            if(!executionData.data.length)return {acknowledged:true,insertedCount:0,insertedIds:{}};
+            const docs=executionData.data.map((doc:any)=>executionData.documentMode&&doc._id==null?{...doc,_id:this.idAdapter.create()}:doc);
+            return c.insertMany(docs,options);
+        }
+        if(executionData.type==='modelUpdate') {const {many,...opts}=options||{};return many?c.updateMany(executionData.filter,executionData.update,opts):c.updateOne(executionData.filter,executionData.update,opts);}
+        if(executionData.type==='modelUpdateReturning')return c.findOneAndUpdate(executionData.filter,executionData.update,{...options,includeResultMetadata:false});
+        if(executionData.type==='modelDelete')return options?.many?c.deleteMany(executionData.filter):c.deleteOne(executionData.filter);
+        if(executionData.type==='insertOne'&&executionData.documentMode){
+            const data={...executionData.data};const primaryKey=executionData.primaryKey||'_id';if(data[primaryKey]==null||data[primaryKey]==='')data[primaryKey]=this.idAdapter.create();return c.insertOne(data);
+        }
         // Aggregation
         if (executionData.type === "aggregation") {
             return await client
@@ -168,7 +144,7 @@ export class MongoDBDriver extends BaseDBDriver {
                 .updateOne(executionData.filter, { $set: executionData.data });
         }
 
-        return null;
+        throw new Error(`Unsupported MongoDB execution type: ${executionData.type}`);
     }
 
     async backup(client: any, options: any): Promise<any> {

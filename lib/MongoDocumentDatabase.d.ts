@@ -2,7 +2,8 @@ import type { Db } from "mongodb";
 /** All native collection access for the core's optional document capability lives here. */
 export declare class MongoDocumentDatabase {
     private readonly database;
-    constructor(database: Db);
+    private readonly preserveIds;
+    constructor(database: Db, preserveIds?: boolean);
     collection(name: string): {
         find: (filter?: any, options?: any) => {
             toArray: () => any;
