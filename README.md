@@ -89,3 +89,13 @@ Optional undefined object properties are omitted from document-model write paylo
 Telemetry works on an existing standalone MongoDB. A single atomic series head commits a bounded pending sample; idempotent writes materialize historical metric rows before accepting the next sample. Reads replay interrupted pending batches, and history is bounded by the captured head. No replica set or extra MongoDB instance is required. `timeSeries` operation `flush` completes pending batches before an offline transfer.
 
 To run the additional integration tests against an existing local service: `WEBFRAMEZ_TEST_MONGODB_URL=mongodb://127.0.0.1:27017 npm test`. They create and remove only uniquely named `webframez_driver_test_*` databases. Do not set the legacy `WEBFRAMEZ_TEST_MONGOD` variable when the environment prohibits additional mongod instances.
+
+### Bounded telemetry retention (0.0.14)
+
+The time-series contract is version 2 (`MongoDBTimeSeriesModel.capabilities()`).
+`maintain(ownerId, seriesId, now, {maxBuckets: 4, maxDurationMs: 100})` returns
+`{more, oldestDueAt, processed}`; continue in a later call while `more` is true.
+Expiry and compaction both process bounded timestamp windows. The time budget
+is cooperative, and pending bucket commits remain replayable on standalone
+MongoDB. `retentionStatus(ownerId, seriesId, now)` reads backlog without advancing
+it; `series(limit, {ownerId, seriesId})` supports paging through scopes.
